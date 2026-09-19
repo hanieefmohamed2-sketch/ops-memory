@@ -9,7 +9,14 @@ IS_SQLITE = DB_URL.startswith("sqlite")
 
 try:
     if not IS_SQLITE:
-        engine = create_engine(DB_URL, pool_pre_ping=True, pool_size=10, max_overflow=20)
+        engine = create_engine(
+            DB_URL, 
+            pool_pre_ping=True, 
+            pool_recycle=300,
+            pool_size=10, 
+            max_overflow=20,
+            connect_args={"connect_timeout": 10}
+        )
         # Test connection
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))

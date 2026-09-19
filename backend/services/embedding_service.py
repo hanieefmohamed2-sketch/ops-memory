@@ -6,30 +6,35 @@ import requests
 from config import settings
 
 EMBEDDING_DIM = 1536
+_OPENAI_AVAILABLE = True
+_GEMINI_AVAILABLE = True
 
 def generate_embedding(text: str) -> list[float]:
     """
     Transforms text into a 1536-dimensional normalized vector embedding.
     Uses OpenAI/Gemini API when available, otherwise uses a semantic feature vectorizer fallback.
     """
+    global _OPENAI_AVAILABLE, _GEMINI_AVAILABLE
     if not text or not text.strip():
         return [0.0] * EMBEDDING_DIM
 
     clean_text = text.strip().lower()
 
     # 1. Try OpenAI Embeddings API
-    if settings.OPENAI_API_KEY:
+    if settings.OPENAI_API_KEY and _OPENAI_AVAILABLE:
         try:
             return _openai_embedding(clean_text)
         except Exception as e:
-            print(f"OpenAI embedding error ({e}). Using semantic vectorizer fallback.")
+            _OPENAI_AVAILABLE = False
+            print(f"OpenAI embedding API unavailable ({e}). Switched to fast semantic vectorizer.")
 
     # 2. Try Gemini Embeddings API
-    if settings.GEMINI_API_KEY:
+    if settings.GEMINI_API_KEY and _GEMINI_AVAILABLE:
         try:
             return _gemini_embedding(clean_text)
         except Exception as e:
-            print(f"Gemini embedding error ({e}). Using semantic vectorizer fallback.")
+            _GEMINI_AVAILABLE = False
+            print(f"Gemini embedding API unavailable ({e}). Switched to fast semantic vectorizer.")
 
     # 3. High-Quality Semantic Feature Vectorizer Fallback
     return _semantic_hash_embedding(clean_text)
@@ -45,7 +50,7 @@ def _openai_embedding(text: str) -> list[float]:
         "input": text
     }
     resp = requests.post(url, headers=headers, json=payload, timeout=10)
-    resp.raise_for_request()
+    resp.raise_for_status()
     data = resp.json()
     return data["data"][0]["embedding"]
 
@@ -55,7 +60,7 @@ def _gemini_embedding(text: str) -> list[float]:
         "content": {"parts": [{"text": text}]}
     }
     resp = requests.post(url, json=payload, timeout=10)
-    resp.raise_for_request()
+    resp.raise_for_status()
     data = resp.json()
     raw_vec = data["embedding"]["values"]
     # Resize or pad to 1536 dimensions

@@ -4,7 +4,11 @@ import re
 import requests
 from config import settings
 
+_OPENAI_AVAILABLE = True
+_GEMINI_AVAILABLE = True
+
 def analyze_incident_text(description: str, title: str = "") -> dict:
+    global _OPENAI_AVAILABLE, _GEMINI_AVAILABLE
     """
     Analyzes natural-language incident description text and extracts structured operational fields:
     - problem
@@ -18,17 +22,19 @@ def analyze_incident_text(description: str, title: str = "") -> dict:
     text_content = f"{title}\n{description}".strip()
 
     # 1. Attempt OpenAI / Gemini LLM API if key is available
-    if settings.OPENAI_API_KEY:
+    if settings.OPENAI_API_KEY and _OPENAI_AVAILABLE:
         try:
             return _extract_with_openai(text_content)
         except Exception as e:
-            print(f"OpenAI extraction error: {e}. Falling back to rule-based NLP extraction engine.")
+            _OPENAI_AVAILABLE = False
+            print(f"OpenAI extraction unavailable ({e}). Falling back to rule-based NLP engine.")
 
-    if settings.GEMINI_API_KEY:
+    if settings.GEMINI_API_KEY and _GEMINI_AVAILABLE:
         try:
             return _extract_with_gemini(text_content)
         except Exception as e:
-            print(f"Gemini extraction error: {e}. Falling back to rule-based NLP extraction engine.")
+            _GEMINI_AVAILABLE = False
+            print(f"Gemini extraction unavailable ({e}). Falling back to rule-based NLP engine.")
 
     # 2. Fallback to Rule-based NLP Extraction Engine
     return _extract_with_rule_engine(description, title)
@@ -58,7 +64,7 @@ Incident Description:
         "temperature": 0.2
     }
     resp = requests.post(url, headers=headers, json=payload, timeout=10)
-    resp.raise_for_request()
+    resp.raise_for_status()
     data = resp.json()
     result = json.loads(data["choices"][0]["message"]["content"])
     return result
@@ -74,7 +80,7 @@ Incident Description:
         "generationConfig": {"response_mime_type": "application/json"}
     }
     resp = requests.post(url, json=payload, timeout=10)
-    resp.raise_for_request()
+    resp.raise_for_status()
     data = resp.json()
     raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
     return json.loads(raw_text)

@@ -11,7 +11,10 @@ from services.embedding_service import generate_embedding
 
 def generate_synthetic_data():
     print("Resetting database tables for fresh vector seeding...")
-    Base.metadata.drop_all(bind=engine)
+    try:
+        Base.metadata.drop_all(bind=engine, checkfirst=True)
+    except Exception as drop_err:
+        print(f"Notice during drop_all: {drop_err}")
     init_db()
     db = SessionLocal()
 
@@ -356,7 +359,7 @@ def generate_synthetic_data():
 
 
             seeded_incidents_count += 1
-            if seeded_incidents_count % 50 == 0:
+            if seeded_incidents_count % 25 == 0:
                 db.commit()
                 print(f"Committed {seeded_incidents_count} / {total_target_incidents} incidents...")
 
